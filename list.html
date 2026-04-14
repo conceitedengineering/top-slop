@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Top Slop List</title>
+    <meta
+      name="description"
+      content="A chronological timeline of notable AI slop moments in public discourse."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="list">
+    <main class="page-shell">
+      <header class="page-header">
+        <a class="back-link" href="./index.html">Top Slop</a>
+        <p class="page-intro">
+          Breakout-date timeline. Open any number of entries to read context, tags,
+          institutional response, and media.
+        </p>
+      </header>
+
+      <section class="timeline-shell">
+        <div class="timeline-legend">
+          <p class="timeline-label">Breakout timeline</p>
+          <p class="timeline-caption">
+            Ordered by the moment each event broke into mainstream circulation.
+          </p>
+        </div>
+        <div class="timeline" data-timeline></div>
+      </section>
+    </main>
+    <script src="./data/events.js"></script>
+    <script src="./data/media.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
