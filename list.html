@@ -8,27 +8,22 @@
       name="description"
       content="A chronological timeline of notable AI slop moments in public discourse."
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Silkscreen:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body data-page="list">
-    <main class="page-shell">
-      <header class="page-header">
-        <a class="back-link" href="./index.html">Top Slop</a>
-        <p class="page-intro">
-          Breakout-date timeline. Open any number of entries to read context, tags,
-          institutional response, and media.
-        </p>
+    <main class="list-shell">
+      <header class="list-header">
+        <a class="list-logo" href="./index.html" aria-label="Back to home">TOP SLOP</a>
+        <p class="list-caption">Ordered by the moment each event broke into mainstream circulation.</p>
       </header>
 
-      <section class="timeline-shell">
-        <div class="timeline-legend">
-          <p class="timeline-label">Breakout timeline</p>
-          <p class="timeline-caption">
-            Ordered by the moment each event broke into mainstream circulation.
-          </p>
-        </div>
-        <div class="timeline" data-timeline></div>
-      </section>
+      <section class="timeline" data-timeline aria-label="Timeline entries"></section>
     </main>
     <script src="./data/events.js"></script>
     <script src="./data/media.js"></script>

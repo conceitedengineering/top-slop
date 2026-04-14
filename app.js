@@ -1,15 +1,7 @@
 const events = Array.isArray(window.TOP_SLOP_EVENTS) ? window.TOP_SLOP_EVENTS : [];
 const mediaLibrary = window.TOP_SLOP_MEDIA || {};
 
-const page = document.body.dataset.page;
-
-if (page === "home") {
-  window.requestAnimationFrame(() => {
-    document.body.classList.add("is-ready");
-  });
-}
-
-if (page === "list") {
+if (document.body.dataset.page === "list") {
   renderTimeline();
 }
 
@@ -31,8 +23,7 @@ function renderTimeline() {
 
     if (year !== currentYear) {
       currentYear = year;
-
-      const yearHeading = document.createElement("div");
+      const yearHeading = document.createElement("h2");
       yearHeading.className = "timeline-year";
       yearHeading.textContent = year;
       container.append(yearHeading);
@@ -44,12 +35,8 @@ function renderTimeline() {
 
     const summary = document.createElement("summary");
     summary.innerHTML = `
-      <div class="entry-header">
-        <p class="entry-date">${formatDate(event.breakoutDate)}</p>
-        <h2 class="entry-title">${event.entry}</h2>
-        <p class="entry-subtitle">${event.format}</p>
-      </div>
-      <span class="entry-plus" aria-hidden="true">+</span>
+      <p class="entry-date">${formatDate(event.breakoutDate)}</p>
+      <h3 class="entry-title">${event.entry}</h3>
     `;
 
     const panel = document.createElement("div");
@@ -57,14 +44,10 @@ function renderTimeline() {
     panel.innerHTML = `
       <section class="media-shell" data-media-shell>
         <div class="media-stage">
-          <div class="media-empty">
-            <p>Media has not been added yet for <strong>${event.entry}</strong>.</p>
-          </div>
-        </div>
-        <div class="media-controls">
-          <p class="media-caption">Add media files in <code>media/${event.slug}/</code> and register them in <code>data/media.js</code>.</p>
+          <div class="media-empty">Loading media...</div>
         </div>
       </section>
+
       <section class="entry-copy">
         <p class="entry-note">${event.bookmarkNote}</p>
         <div class="entry-meta">
@@ -73,22 +56,12 @@ function renderTimeline() {
             <p class="meta-value">${formatDate(event.firstSeenDate)}</p>
           </div>
           <div class="meta-block">
-            <span class="meta-label">AI Role</span>
-            <p class="meta-value">${event.aiRole}</p>
-          </div>
-          <div class="meta-block">
             <span class="meta-label">Aesthetic Mode</span>
             <p class="meta-value">${event.aestheticMode}</p>
           </div>
           <div class="meta-block">
-            <span class="meta-label">Institutional Response</span>
-            <p class="meta-value">${event.institutionalResponse}</p>
-          </div>
-        </div>
-        <div class="meta-block">
-          <span class="meta-label">Pattern Tags</span>
-          <div class="tag-list">
-            ${event.patternTags.map((tag) => `<span class="tag">${humanizeTag(tag)}</span>`).join("")}
+            <span class="meta-label">Pattern Tags</span>
+            <div class="tag-list">${event.patternTags.map((tag) => `<span class="tag">${humanizeTag(tag)}</span>`).join("")}</div>
           </div>
         </div>
       </section>
@@ -97,7 +70,8 @@ function renderTimeline() {
     details.append(summary, panel);
     details.addEventListener("toggle", () => {
       if (details.open && !details.dataset.mediaLoaded) {
-        void hydrateMedia(details, event);
+        details.dataset.mediaLoaded = "true";
+        hydrateMedia(details, event);
       }
     });
 
@@ -105,94 +79,75 @@ function renderTimeline() {
   }
 }
 
-async function hydrateMedia(details, event) {
+function hydrateMedia(details, event) {
   const shell = details.querySelector("[data-media-shell]");
 
   if (!shell) {
     return;
   }
 
-  details.dataset.mediaLoaded = "true";
-
   const manifest = mediaLibrary[event.slug];
   const items = Array.isArray(manifest?.items) ? manifest.items : [];
 
   if (items.length === 0) {
-    renderEmptyMedia(shell, event);
+    shell.innerHTML = '<div class="media-stage"><div class="media-empty">No media available.</div></div>';
     return;
   }
 
-  renderGallery(shell, items, `./media/${event.slug}/`);
+  renderCarousel(shell, items, `./media/${event.slug}/`);
 }
 
-function renderEmptyMedia(shell, event) {
-  shell.innerHTML = `
-    <div class="media-stage">
-      <div class="media-empty">
-        <div>
-          <p>Media has not been added yet for <strong>${event.entry}</strong>.</p>
-          <p>Drop files into <code>media/${event.slug}/</code> and register them in <code>data/media.js</code>.</p>
-        </div>
-      </div>
-    </div>
-    <div class="media-controls">
-      <p class="media-caption">Images, local video files, and embeds are all supported.</p>
-    </div>
-  `;
-}
-
-function renderGallery(shell, items, basePath) {
+function renderCarousel(shell, items, basePath) {
   shell.innerHTML = `
     <div class="media-stage" data-media-stage></div>
-    <div class="media-controls">
-      <p class="media-caption" data-media-caption></p>
-      <div class="media-nav">
-        <button class="media-button" type="button" data-media-prev aria-label="Previous slide">←</button>
-        <p class="media-counter" data-media-counter></p>
-        <button class="media-button" type="button" data-media-next aria-label="Next slide">→</button>
-      </div>
-    </div>
+    <div class="media-dots" data-media-dots aria-label="Carousel pagination"></div>
   `;
 
   const stage = shell.querySelector("[data-media-stage]");
-  const counter = shell.querySelector("[data-media-counter]");
-  const caption = shell.querySelector("[data-media-caption]");
-  const prevButton = shell.querySelector("[data-media-prev]");
-  const nextButton = shell.querySelector("[data-media-next]");
-
+  const dotContainer = shell.querySelector("[data-media-dots]");
+  const slides = [];
+  const dots = [];
   let activeIndex = 0;
 
-  const slides = items.map((item, index) => {
+  items.forEach((item, index) => {
     const slide = document.createElement("div");
     slide.className = "media-slide";
     slide.hidden = index !== activeIndex;
     slide.append(createMediaNode(item, basePath));
     stage.append(slide);
-    return slide;
+    slides.push(slide);
+
+    const dot = document.createElement("button");
+    dot.className = "media-dot";
+    dot.type = "button";
+    dot.ariaLabel = `Slide ${index + 1}`;
+    dot.setAttribute("aria-current", index === activeIndex ? "true" : "false");
+    dot.addEventListener("click", () => {
+      activeIndex = index;
+      syncCarousel();
+    });
+    dotContainer.append(dot);
+    dots.push(dot);
   });
 
-  function syncGallery() {
+  function syncCarousel() {
     slides.forEach((slide, index) => {
       slide.hidden = index !== activeIndex;
     });
 
-    counter.textContent = `${activeIndex + 1} / ${items.length}`;
-    caption.textContent = items[activeIndex].caption || items[activeIndex].title || "";
-    prevButton.hidden = items.length < 2;
-    nextButton.hidden = items.length < 2;
+    dots.forEach((dot, index) => {
+      dot.setAttribute("aria-current", index === activeIndex ? "true" : "false");
+    });
   }
 
-  prevButton.addEventListener("click", () => {
-    activeIndex = (activeIndex - 1 + items.length) % items.length;
-    syncGallery();
-  });
+  if (items.length > 1) {
+    stage.addEventListener("click", () => {
+      activeIndex = (activeIndex + 1) % items.length;
+      syncCarousel();
+    });
+  }
 
-  nextButton.addEventListener("click", () => {
-    activeIndex = (activeIndex + 1) % items.length;
-    syncGallery();
-  });
-
-  syncGallery();
+  syncCarousel();
 }
 
 function createMediaNode(item, basePath) {
@@ -203,7 +158,8 @@ function createMediaNode(item, basePath) {
     frame.src = item.src;
     frame.title = item.title || "Embedded media";
     frame.loading = "lazy";
-    frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+    frame.allow =
+      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
     frame.allowFullscreen = true;
     return frame;
   }
@@ -225,6 +181,7 @@ function createMediaNode(item, basePath) {
   image.src = new URL(item.src, baseUrl).href;
   image.alt = item.alt || item.caption || "";
   image.loading = "lazy";
+  image.decoding = "async";
   return image;
 }
 
