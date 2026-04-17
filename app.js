@@ -1,7 +1,9 @@
 const events = Array.isArray(window.TOP_SLOP_EVENTS) ? window.TOP_SLOP_EVENTS : [];
 const mediaLibrary = window.TOP_SLOP_MEDIA || {};
+let activeLightbox = null;
 
 if (document.body.dataset.page === "list") {
+  ensureLightbox();
   renderTimeline();
 }
 
@@ -77,6 +79,35 @@ function renderTimeline() {
 
     container.append(details);
   }
+
+  openRequestedEntry(container);
+}
+
+function openRequestedEntry(container) {
+  const params = new URLSearchParams(window.location.search);
+  const requestedSlug = params.get("open") || window.location.hash.replace(/^#/, "");
+
+  if (!requestedSlug) {
+    return;
+  }
+
+  const requestedEntry = container.querySelector(`[data-slug="${CSS.escape(requestedSlug)}"]`);
+
+  if (!requestedEntry) {
+    return;
+  }
+
+  requestedEntry.open = true;
+
+  if (!requestedEntry.dataset.mediaLoaded) {
+    requestedEntry.dataset.mediaLoaded = "true";
+
+    const event = events.find((item) => item.slug === requestedSlug);
+
+    if (event) {
+      hydrateMedia(requestedEntry, event);
+    }
+  }
 }
 
 function hydrateMedia(details, event) {
@@ -99,12 +130,21 @@ function hydrateMedia(details, event) {
 
 function renderCarousel(shell, items, basePath) {
   shell.innerHTML = `
-    <div class="media-stage" data-media-stage></div>
+    <div class="media-stage" data-media-stage>
+      <button class="media-arrow media-arrow--prev" type="button" data-media-prev aria-label="Previous image">
+        <span aria-hidden="true">‹</span>
+      </button>
+      <button class="media-arrow media-arrow--next" type="button" data-media-next aria-label="Next image">
+        <span aria-hidden="true">›</span>
+      </button>
+    </div>
     <div class="media-dots" data-media-dots aria-label="Carousel pagination"></div>
   `;
 
   const stage = shell.querySelector("[data-media-stage]");
   const dotContainer = shell.querySelector("[data-media-dots]");
+  const prevButton = shell.querySelector("[data-media-prev]");
+  const nextButton = shell.querySelector("[data-media-next]");
   const slides = [];
   const dots = [];
   let activeIndex = 0;
@@ -138,14 +178,40 @@ function renderCarousel(shell, items, basePath) {
     dots.forEach((dot, index) => {
       dot.setAttribute("aria-current", index === activeIndex ? "true" : "false");
     });
+
+    prevButton.hidden = activeIndex === 0;
+    nextButton.hidden = activeIndex === items.length - 1;
   }
 
-  if (items.length > 1) {
-    stage.addEventListener("click", () => {
-      activeIndex = (activeIndex + 1) % items.length;
-      syncCarousel();
-    });
-  }
+  prevButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+
+    if (activeIndex === 0) {
+      return;
+    }
+
+    activeIndex -= 1;
+    syncCarousel();
+  });
+
+  nextButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+
+    if (activeIndex === items.length - 1) {
+      return;
+    }
+
+    activeIndex += 1;
+    syncCarousel();
+  });
+
+  stage.addEventListener("click", (event) => {
+    if (event.target.closest(".media-arrow")) {
+      return;
+    }
+
+    openLightbox(items, basePath, activeIndex);
+  });
 
   syncCarousel();
 }
@@ -213,4 +279,155 @@ function formatDate(dateString) {
 
 function humanizeTag(tag) {
   return tag.replaceAll("_", " ");
+}
+
+function ensureLightbox() {
+  if (document.querySelector("[data-lightbox]")) {
+    return;
+  }
+
+  const lightbox = document.createElement("div");
+  lightbox.className = "lightbox";
+  lightbox.dataset.lightbox = "true";
+  lightbox.hidden = true;
+  lightbox.innerHTML = `
+    <div class="lightbox-backdrop" data-lightbox-close></div>
+    <div class="lightbox-dialog" role="dialog" aria-modal="true" aria-label="Image viewer">
+      <button class="lightbox-close" type="button" data-lightbox-close aria-label="Close viewer">×</button>
+      <div class="lightbox-frame">
+        <button class="lightbox-arrow lightbox-arrow--prev" type="button" data-lightbox-prev aria-label="Previous image">
+          <span aria-hidden="true">‹</span>
+        </button>
+        <div class="lightbox-media" data-lightbox-media></div>
+        <button class="lightbox-arrow lightbox-arrow--next" type="button" data-lightbox-next aria-label="Next image">
+          <span aria-hidden="true">›</span>
+        </button>
+      </div>
+      <div class="lightbox-thumbs" data-lightbox-thumbs></div>
+    </div>
+  `;
+
+  document.body.append(lightbox);
+
+  lightbox.addEventListener("click", (event) => {
+    if (event.target.matches("[data-lightbox-close]")) {
+      closeLightbox();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (!activeLightbox) {
+      return;
+    }
+
+    if (event.key === "Escape") {
+      closeLightbox();
+      return;
+    }
+
+    if (event.key === "ArrowLeft") {
+      stepLightbox(-1);
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      stepLightbox(1);
+    }
+  });
+
+  lightbox.querySelector("[data-lightbox-prev]").addEventListener("click", () => {
+    stepLightbox(-1);
+  });
+
+  lightbox.querySelector("[data-lightbox-next]").addEventListener("click", () => {
+    stepLightbox(1);
+  });
+}
+
+function openLightbox(items, basePath, startIndex) {
+  const lightbox = document.querySelector("[data-lightbox]");
+
+  if (!lightbox) {
+    return;
+  }
+
+  activeLightbox = {
+    items,
+    basePath,
+    activeIndex: startIndex,
+  };
+
+  lightbox.hidden = false;
+  document.body.classList.add("lightbox-open");
+  syncLightbox();
+}
+
+function closeLightbox() {
+  const lightbox = document.querySelector("[data-lightbox]");
+
+  if (!lightbox) {
+    return;
+  }
+
+  activeLightbox = null;
+  lightbox.hidden = true;
+  document.body.classList.remove("lightbox-open");
+}
+
+function stepLightbox(direction) {
+  if (!activeLightbox) {
+    return;
+  }
+
+  const nextIndex = activeLightbox.activeIndex + direction;
+
+  if (nextIndex < 0 || nextIndex >= activeLightbox.items.length) {
+    return;
+  }
+
+  activeLightbox.activeIndex = nextIndex;
+  syncLightbox();
+}
+
+function syncLightbox() {
+  if (!activeLightbox) {
+    return;
+  }
+
+  const lightbox = document.querySelector("[data-lightbox]");
+  const mediaRoot = lightbox.querySelector("[data-lightbox-media]");
+  const thumbsRoot = lightbox.querySelector("[data-lightbox-thumbs]");
+  const prevButton = lightbox.querySelector("[data-lightbox-prev]");
+  const nextButton = lightbox.querySelector("[data-lightbox-next]");
+
+  mediaRoot.innerHTML = "";
+  thumbsRoot.innerHTML = "";
+
+  const currentItem = activeLightbox.items[activeLightbox.activeIndex];
+  const mediaNode = createMediaNode(currentItem, activeLightbox.basePath);
+
+  mediaNode.classList.add("lightbox-media__asset");
+  mediaRoot.append(mediaNode);
+
+  activeLightbox.items.forEach((item, index) => {
+    const thumbButton = document.createElement("button");
+    thumbButton.className = "lightbox-thumb";
+    thumbButton.type = "button";
+    thumbButton.setAttribute("aria-current", index === activeLightbox.activeIndex ? "true" : "false");
+    thumbButton.setAttribute("aria-label", `Open image ${index + 1}`);
+
+    const thumbNode = createMediaNode(item, activeLightbox.basePath);
+    thumbNode.classList.add("lightbox-thumb__asset");
+    thumbButton.append(thumbNode);
+
+    thumbButton.addEventListener("click", () => {
+      activeLightbox.activeIndex = index;
+      syncLightbox();
+    });
+
+    thumbsRoot.append(thumbButton);
+  });
+
+  prevButton.hidden = activeLightbox.activeIndex === 0;
+  nextButton.hidden = activeLightbox.activeIndex === activeLightbox.items.length - 1;
 }
